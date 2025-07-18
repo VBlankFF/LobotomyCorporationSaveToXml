@@ -8,7 +8,7 @@ using System.Xml;
 using System.Xml.Serialization;
 using UnityEngine.Rendering;
 
-namespace ArchipelagoMod
+namespace XmlSaveMod
 {
     public class Harmony_Patch
     {
@@ -16,20 +16,23 @@ namespace ArchipelagoMod
         public static XmlDocument save;
         public static XmlElement superElem;
         public static int docnum;
-        public static List<Type> typeBuffer;
+        public static Dictionary<string, Type> typeBuffer;
         private static Assembly gameAssembly;
         private static string filePath;
+        private static bool fileExists;
         // Constructor
         public Harmony_Patch()
         {
 
             // Apply patches
-            HarmonyInstance harmony = HarmonyInstance.Create("LobotomyCorporationArchipelago");
+            HarmonyInstance harmony = HarmonyInstance.Create("LobotomyCorporationSaveToXmlMod_VBlankFF");
             try
             {
-                MethodInfo method = typeof(Harmony_Patch).GetMethod("SaveXMLPatch");
+                MethodInfo method = typeof(Harmony_Patch).GetMethod("LoadXMLPatch");
                 harmony.Patch(typeof(SaveUtil).GetMethod("ReadSerializableFile", AccessTools.all), new HarmonyMethod(typeof(Harmony_Patch).GetMethod("GetSaveType")), new HarmonyMethod(method), null);
-                save = new XmlDocument();
+                MethodInfo method2 = typeof(Harmony_Patch).GetMethod("SaveXMLPatch");
+                harmony.Patch(typeof(SaveUtil).GetMethod("WriteSerializableFile", AccessTools.all), new HarmonyMethod(method2), null, null);
+
                 //filePath = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\LobotomyCorp\\LobotomyCorp_Data\\BaseMods\\LobotomyArchipelago_MOD_v1.0.0\\saveData170808.xml";
                 //SaveUtil.ReadSerializableFile("C:\\Users\\sterl\\AppData\\LocalLow\\Project_Moon\\Lobotomy\\saveData170808.dat");
                 //filePath = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\LobotomyCorp\\LobotomyCorp_Data\\BaseMods\\LobotomyArchipelago_MOD_v1.0.0\\saveGlobal170808.xml";
@@ -38,13 +41,13 @@ namespace ArchipelagoMod
                 //SaveUtil.ReadSerializableFile("C:\\Users\\sterl\\AppData\\LocalLow\\Project_Moon\\Lobotomy\\saveUnlimitV5170808.dat");
                 //filePath = "C:\\Program Files (x86)\\Steam\\steamapps\\common\\LobotomyCorp\\LobotomyCorp_Data\\BaseMods\\LobotomyArchipelago_MOD_v1.0.0\\etc170808.xml";
                 //SaveUtil.ReadSerializableFile("C:\\Users\\sterl\\AppData\\LocalLow\\Project_Moon\\Lobotomy\\etc170808.dat");
-                filePath = "";
 
+                fileExists = false;
                 docnum = 0;
             }
             catch (Exception ex)
             {
-                LobotomyBaseMod.ModDebug.Log(ex.ToString());
+                ////LobotomyBaseMod.ModDebug.Log(ex.ToString());
             }
 
         } // end constructor
@@ -62,40 +65,76 @@ namespace ArchipelagoMod
                 RecursiveOut(y, 0);
             }
         }
-        public static void SaveXMLPatch(ref Dictionary<string, object> __result, string __state)
+        public static void SaveXMLPatch(string fileName, Dictionary<string, object> dic)
+        {
+            save = new XmlDocument();
+            filePath = "";
+            superElem = save.CreateElement(null, "save", null);
+            RecursiveXml(dic, superElem);
+            save.AppendChild(superElem);
+            //if (filePath.Equals(""))
+            //{
+            //    save.Save("C:\\Program Files (x86)\\Steam\\steamapps\\common\\LobotomyCorp\\LobotomyCorp_Data\\BaseMods\\LobotomyArchipelago_MOD_v1.0.0\\" + docnum.ToString() + ".xml");
+            //}
+            //else
+            //{
+            save.Save(fileName.Remove(fileName.Length - 4, 4) + ".xml");
+            //}
+
+            save = new XmlDocument();
+            docnum++;
+        }
+        public static void LoadXMLPatch(ref Dictionary<string, object> __result, string __state)
         {
             try
             {
                 if (__result != null)
                 {
-                    gameAssembly = Assembly.GetAssembly(typeof(AgentModel));
-                    Dictionary<string, object> result = DeserializeXml(__state.Remove(__state.Length - 4, 4) + ".xml");
-                    if (__result.Equals(result))
-                    {
-                        LobotomyBaseMod.ModDebug.Log("IT WORKS RAAAAA");
-                    }
-                    else
-                    {
-                        LobotomyBaseMod.ModDebug.Log("it is broken...");
-                    }
-                    //superElem = save.CreateElement(null, "save", null);
-                    //RecursiveXml(__result, superElem);
-                    //save.AppendChild(superElem);
-                    //if (filePath.Equals(""))
-                    //{
-                    //    save.Save("C:\\Program Files (x86)\\Steam\\steamapps\\common\\LobotomyCorp\\LobotomyCorp_Data\\BaseMods\\LobotomyArchipelago_MOD_v1.0.0\\" + docnum.ToString() + ".xml");
-                    //}
-                    //else
-                    //{
-                    //    save.Save(filePath);
-                    //}
 
-                    //save = new XmlDocument();
-                    //docnum++;
-                    __result = result;
+                    string adjustedFileName = __state.Remove(__state.Length - 4, 4) + ".xml";
+                    if (gameAssembly is null)
+                    {
+                        gameAssembly = Assembly.GetAssembly(typeof(AgentModel));
+                    }
+                    if (File.Exists(adjustedFileName))
+                    {
+                        Dictionary<string, object> result = DeserializeXml(adjustedFileName);
+                        __result = result;
+                    }
+                    else if (!fileExists)
+                    {
+                        string[] saveNames =
+                        {
+                            "saveData170808",
+                            "saveGlobal170808",
+                            "saveUnlimitV5170808",
+                            "etc170808"
+                        };
+                        foreach (string saveName in saveNames)
+                        {
+                            if (adjustedFileName.Contains(saveName))
+                            {
+                                adjustedFileName = adjustedFileName.Replace(saveName + ".xml", "");
+                                fileExists = true;
+                                foreach (string saveName2 in saveNames)
+                                {
+                                    if (File.Exists(adjustedFileName + saveName2 + ".dat"))
+                                    {
+                                        SaveUtil.WriteSerializableFile(adjustedFileName + saveName2 + ".dat", SaveUtil.ReadSerializableFile(adjustedFileName + saveName2 + ".dat"));
+                                    }
+                                    else
+                                    {
+                                        UnityEngine.Debug.Log("doesn't exist " + adjustedFileName + saveName2 + ".dat");
+                                    }
+                                }
+                                fileExists = false;
+                                break;
+                            }
+                        }
+                    }
                 }
             }
-            catch (Exception ex) { LobotomyBaseMod.ModDebug.Log(ex.ToString()); }
+            catch (Exception ex) { UnityEngine.Debug.Log(ex.ToString()); }
         }
         public static void RecursiveOut<T, K>(Dictionary<T, K> x, int depth)
         {
@@ -241,11 +280,8 @@ namespace ArchipelagoMod
             XmlElement testElement = null;
             foreach (var y in x)
             {
-                // for testing only
-                LobotomyBaseMod.ModDebug.Log(y.Key.ToString() + " " + y.Key.GetType().ToString() + " " + y.Value.GetType().ToString());
                 if (y.Value.GetType().IsGenericType && Equals(y.Value.GetType().GetGenericTypeDefinition(), typeof(Dictionary<,>)))
                 {
-                    LobotomyBaseMod.ModDebug.Log("1");
                     // make an element with the name of the dictionary
                     try
                     {
@@ -256,12 +292,11 @@ namespace ArchipelagoMod
                         // this is horrible practice
                         thisElement = save.CreateElement("num" + y.Key.ToString());
                     }
-                    // store its type in a field or whatever they're called
+                    // store its type
                     testElement = save.CreateElement("type");
                     XmlText textToAdd = save.CreateTextNode(y.Value.GetType().ToString());
                     testElement.AppendChild(textToAdd);
                     thisElement.AppendChild(testElement);
-                    LobotomyBaseMod.ModDebug.Log("2");
                     // call this function on the dictionary (recursion!)
                     Type[] typesofz = {
                         y.Value.GetType(),
@@ -273,32 +308,26 @@ namespace ArchipelagoMod
                         y.Value,
                         thisElement
                     };
-                    LobotomyBaseMod.ModDebug.Log("3");
                     testElement = (XmlElement)generic.Invoke(null, param);
                     // add the result as a child to this node
                     if (testElement != null)
                     {
                         thisElement.AppendChild(testElement);
                     }
-                    LobotomyBaseMod.ModDebug.Log("4");
                 }
                 else if (y.Value.GetType().IsGenericType && Equals(y.Value.GetType().GetGenericTypeDefinition(), typeof(List<>)))
                 {
-                    LobotomyBaseMod.ModDebug.Log("7");
                     // make an element with the name of this list
                     thisElement = save.CreateElement(y.Key.ToString());
-                    LobotomyBaseMod.ModDebug.Log("8");
                     // most of the logic is in this funtion
                     MethodInfo method = typeof(Harmony_Patch).GetMethod(nameof(Harmony_Patch.RecursiveListXml));
-                    LobotomyBaseMod.ModDebug.Log("9");
                     MethodInfo generic = method.MakeGenericMethod(y.Value.GetType().GetGenericArguments());
-                    LobotomyBaseMod.ModDebug.Log(y.Value.GetType().GetGenericArguments().ToString());
+                    //LobotomyBaseMod.ModDebug.Log(y.Value.GetType().GetGenericArguments().ToString());
                     object[] param = {
                         y.Value,
                         thisElement
                     };
                     thisElement = (XmlElement)generic.Invoke(null, param);
-                    LobotomyBaseMod.ModDebug.Log("10");
                 }
                 else if (!y.Value.GetType().IsPrimitive && !y.Value.GetType().Equals(typeof(Type[])) && !y.Value.GetType().Equals(typeof(string)))
                 {
@@ -313,8 +342,7 @@ namespace ArchipelagoMod
                         thisElement = save.CreateElement("num" + y.Key.ToString());
                     }
                     MethodInfo method = typeof(Harmony_Patch).GetMethod(nameof(Harmony_Patch.RecursiveObjectSerializer));
-                    LobotomyBaseMod.ModDebug.Log("9");
-                    LobotomyBaseMod.ModDebug.Log(y.GetType().GetGenericArguments().ToString());
+                    //LobotomyBaseMod.ModDebug.Log(y.GetType().GetGenericArguments().ToString());
                     MethodInfo generic = method.MakeGenericMethod(y.Value.GetType());
                     object[] param = {
                         y.Value,
@@ -324,7 +352,6 @@ namespace ArchipelagoMod
                 }
                 else if (y.GetType().IsGenericType && Equals(y.GetType().GetGenericTypeDefinition(), typeof(KeyValuePair<,>)))
                 {
-                    LobotomyBaseMod.ModDebug.Log("5");
                     try
                     {
                         thisElement = save.CreateElement(y.Key.ToString());
@@ -340,11 +367,9 @@ namespace ArchipelagoMod
                     testElement = save.CreateElement("value");
                     testElement.AppendChild(save.CreateTextNode(y.Value.ToString()));
                     thisElement.AppendChild(testElement);
-                    LobotomyBaseMod.ModDebug.Log("6");
                 }
                 else
                 {
-                    LobotomyBaseMod.ModDebug.Log("11");
                     try
                     {
                         thisElement = save.CreateElement(y.Key.ToString());
@@ -354,18 +379,15 @@ namespace ArchipelagoMod
                         // this is horrible practice
                         thisElement = save.CreateElement("num" + y.Key.ToString());
                     }
-                    LobotomyBaseMod.ModDebug.Log("12");
                     thisElement.AppendChild(save.CreateTextNode(y.Value.ToString()));
-                    LobotomyBaseMod.ModDebug.Log("13");
                 }
                 // add the element to the document
                 superElement.AppendChild(thisElement);
             }
-            LobotomyBaseMod.ModDebug.Log("14");
         }
         public static XmlElement RecursiveListXml<T>(List<T> y, XmlElement thisElement)
         {
-            LobotomyBaseMod.ModDebug.Log(y.ToString() + y.GetType().ToString());
+            //LobotomyBaseMod.ModDebug.Log(y.ToString() + y.GetType().ToString());
             // make an element named List with the text of the list's type
             XmlElement testElement = null;
             testElement = save.CreateElement("type");
@@ -398,7 +420,7 @@ namespace ArchipelagoMod
                     {
                         XmlElement subElement = save.CreateElement("index" + index);
                         MethodInfo method = typeof(Harmony_Patch).GetMethod(nameof(Harmony_Patch.RecursiveObjectSerializer));
-                        LobotomyBaseMod.ModDebug.Log(y.GetType().GetGenericArguments().ToString());
+                        //LobotomyBaseMod.ModDebug.Log(y.GetType().GetGenericArguments().ToString());
                         MethodInfo generic = method.MakeGenericMethod(y.GetType().GetGenericArguments());
                         object[] param = {
                         z,
@@ -426,8 +448,6 @@ namespace ArchipelagoMod
         public static XmlElement RecursiveObjectSerializer<T>(T y, XmlElement thisElement)
         {
             XmlElement testElement;
-            LobotomyBaseMod.ModDebug.Log("11");
-            LobotomyBaseMod.ModDebug.Log("12");
             testElement = save.CreateElement("type");
             testElement.AppendChild(save.CreateTextNode(y.GetType().ToString()));
             thisElement.AppendChild(testElement);
@@ -435,18 +455,12 @@ namespace ArchipelagoMod
             foreach (FieldInfo field in y.GetType().GetFields())
             {
                 XmlElement objElement = save.CreateElement(field.Name);
-                LobotomyBaseMod.ModDebug.Log("12");
                 var z = field.GetValue(y);
-                LobotomyBaseMod.ModDebug.Log(field.FieldType.ToString());
-                LobotomyBaseMod.ModDebug.Log("13");
+                //LobotomyBaseMod.ModDebug.Log(field.FieldType.ToString());
                 testElement = save.CreateElement("type");
-                LobotomyBaseMod.ModDebug.Log("14");
                 testElement.AppendChild(save.CreateTextNode(field.FieldType.ToString()));
-                LobotomyBaseMod.ModDebug.Log("15");
                 objElement.AppendChild(testElement);
-                LobotomyBaseMod.ModDebug.Log("16");
                 testElement = save.CreateElement("value");
-                LobotomyBaseMod.ModDebug.Log("17");
 
                 if (z != null)
                 {
@@ -455,7 +469,6 @@ namespace ArchipelagoMod
                     {
                         XmlElement subElement = save.CreateElement(field.Name);
                         MethodInfo method = typeof(Harmony_Patch).GetMethod(nameof(Harmony_Patch.RecursiveObjectSerializer));
-                        LobotomyBaseMod.ModDebug.Log("9");
                         MethodInfo generic = method.MakeGenericMethod(z.GetType());
                         object[] param = {
                         z,
@@ -469,11 +482,8 @@ namespace ArchipelagoMod
                         testElement.AppendChild(save.CreateTextNode(z.ToString()));
                     }
                 }
-                LobotomyBaseMod.ModDebug.Log("18");
                 objElement.AppendChild(testElement);
-                LobotomyBaseMod.ModDebug.Log("19");
                 thisElement.AppendChild(objElement);
-                LobotomyBaseMod.ModDebug.Log("20");
             }
             // return the finished element to the caller
             return thisElement;
@@ -481,8 +491,28 @@ namespace ArchipelagoMod
 
         public static Dictionary<string, object> DeserializeXml(string xmlName)
         {
+            if (gameAssembly is null)
+            {
+                foreach (var a in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    if (a.FullName.Contains("Assembly-CSharp"))
+                    {
+                        gameAssembly = a;
+                        break;
+                    }
+
+                }
+            }
             XmlDocument save = new XmlDocument();
-            typeBuffer = new List<Type>();
+            // this is a suprisingly significant optimization
+            if (typeBuffer is null)
+            {
+                typeBuffer = new Dictionary<string, Type>();
+                typeBuffer[typeof(string).ToString()] = typeof(string);
+                typeBuffer[typeof(int).ToString()] = typeof(int);
+                typeBuffer[typeof(long).ToString()] = typeof(long);
+                typeBuffer[typeof(acs::RwbpType).ToString()] = typeof(acs::RwbpType);
+            }
             save.Load(xmlName);
             Dictionary<string, object> baseDict = new Dictionary<string, object>();
             foreach (XmlNode node in save.FirstChild.ChildNodes)
@@ -512,95 +542,78 @@ namespace ArchipelagoMod
                 {
                     if (objType is null)
                     {
+                        typeBuffer.TryGetValue(node.FirstChild.InnerText, out objType);
+                    }
+                    if (objType is null)
+                    {
                         objType = Type.GetType(node.FirstChild.InnerText);
                     }
                     else
                     {
-                        LobotomyBaseMod.ModDebug.Log(objType.ToString());
+                        //LobotomyBaseMod.ModDebug.Log(objType.ToString());
                     }
                     // some types aren't so easy to find...
                     if (objType is null)
                     {
-                        // search the buffer for the relevant type first
-                        foreach (Type bufferType in typeBuffer)
+                        if (node.FirstChild.InnerText.StartsWith("System.Collections.Generic.Dictionary`2"))
                         {
-                            if (node.FirstChild.InnerText == bufferType.ToString())
-                            {
-                                //objType = bufferType;
-                            }
-                        }
-                        if (!(objType is null) && objType.IsGenericType && Equals(objType.GetGenericTypeDefinition(), typeof(Dictionary<,>)))
-                        {
-                            if (node.Name.Contains("metadataId"))
-                            {
-                                LobotomyBaseMod.ModDebug.Log("here! 3");
-                            }
                             dictTypes = MakeDict(node);
+                            if (dictTypes[0] is null)
+                            {
+                                UnityEngine.Debug.Log("Can't find type of " + node.FirstChild.InnerText);
+                            }
+                            Type[] dictTypes2 = new Type[2];
+                            dictTypes2[0] = dictTypes[0];
+                            dictTypes2[1] = dictTypes[1];
                             MethodInfo method = typeof(Harmony_Patch).GetMethod("ActuallyMakeDict");
-                            MethodInfo generic = method.MakeGenericMethod(dictTypes);
+                            MethodInfo generic = method.MakeGenericMethod(dictTypes2);
                             thisDictionary = generic.Invoke(null, null);
+                            typeBuffer[thisDictionary.GetType().ToString()] = thisDictionary.GetType();
+                            shouldInvoke = false;
+                            objType = thisDictionary.GetType();
                         }
-                        else if (!(objType is null) && objType.IsGenericType && Equals(objType.GetGenericTypeDefinition(), typeof(List<>)))
+                        else if (node.FirstChild.InnerText.StartsWith("System.Collections.Generic.List`1"))
                         {
                             Type listType = MakeList(node);
                             MethodInfo method = typeof(Harmony_Patch).GetMethod("ActuallyMakeList");
                             MethodInfo generic = method.MakeGenericMethod(new Type[] { listType });
                             thisList = generic.Invoke(null, null);
-                            typeBuffer.Add(thisList.GetType());
+                            typeBuffer[thisList.GetType().ToString()] = thisList.GetType();
                             shouldInvoke = false;
                             objType = thisList.GetType();
                         }
-                        // if it's not found there, search everything
-                        if (objType is null)
+                        else
                         {
-                            if (node.FirstChild.InnerText.StartsWith("System.Collections.Generic.Dictionary`2"))
+                            string typestring = node.FirstChild.InnerText;
+                            foreach (Type t in gameAssembly.GetTypes())
                             {
-                                if (node.Name.Contains("metadataId"))
+                                if (typestring.Equals(t.ToString()))
                                 {
-                                    LobotomyBaseMod.ModDebug.Log("here! 2");
+                                    // store it in the buffer for optimization purposes
+                                    typeBuffer[t.ToString()] = t;
+                                    objType = t;
+                                    break;
+                                    //LobotomyBaseMod.ModDebug.Log(t.ToString());
                                 }
-                                dictTypes = MakeDict(node);
-                                if (dictTypes[0] is null)
-                                {
-                                    LobotomyBaseMod.ModDebug.Log(typeof(RwbpType).FullName);
-                                    if (Type.GetType("RwbpType") is null)
-                                    {
-                                        LobotomyBaseMod.ModDebug.Log("where it??");
-                                    }
-                                }
-                                Type[] dictTypes2 = new Type[2];
-                                dictTypes2[0] = dictTypes[0];
-                                dictTypes2[1] = dictTypes[1];
-                                MethodInfo method = typeof(Harmony_Patch).GetMethod("ActuallyMakeDict");
-                                MethodInfo generic = method.MakeGenericMethod(dictTypes2);
-                                thisDictionary = generic.Invoke(null, null);
-                                typeBuffer.Add(thisDictionary.GetType());
-                                shouldInvoke = false;
-                                objType = thisDictionary.GetType();
                             }
-                            else if (node.FirstChild.InnerText.StartsWith("System.Collections.Generic.List`1"))
-                            {
-                                Type listType = MakeList(node);
-                                MethodInfo method = typeof(Harmony_Patch).GetMethod("ActuallyMakeList");
-                                MethodInfo generic = method.MakeGenericMethod(new Type[] { listType });
-                                thisList = generic.Invoke(null, null);
-                                typeBuffer.Add(thisList.GetType());
-                                shouldInvoke = false;
-                                objType = thisList.GetType();
-                            }
-                            else
+
+                            if (objType is null)
                             {
                                 foreach (Assembly a in AppDomain.CurrentDomain.GetAssemblies())
                                 {
                                     foreach (Type t in a.GetTypes())
                                     {
-                                        if (node.FirstChild.InnerText == t.ToString())
+                                        if (typestring == t.ToString())
                                         {
                                             // store it in the buffer for optimization purposes
-                                            typeBuffer.Add(t);
+                                            typeBuffer[t.ToString()] = t;
                                             objType = t;
                                             break;
                                         }
+                                    }
+                                    if (!(objType is null))
+                                    {
+                                        break;
                                     }
                                 }
                             }
@@ -616,10 +629,6 @@ namespace ArchipelagoMod
                             }
                             else
                             {
-                                if (node.Name.Contains("metadataId"))
-                                {
-                                    LobotomyBaseMod.ModDebug.Log("here! 1");
-                                }
                                 dictTypes = MakeDict(node);
                             }
                             Type[] dictTypes2;
@@ -653,7 +662,7 @@ namespace ArchipelagoMod
                             MethodInfo method = typeof(Harmony_Patch).GetMethod("ActuallyMakeList");
                             MethodInfo generic = method.MakeGenericMethod(new Type[] { listType });
                             thisList = generic.Invoke(null, null);
-                            typeBuffer.Add(thisList.GetType());
+                            typeBuffer[thisList.GetType().ToString()] = thisList.GetType();
                             shouldInvoke = false;
                             objType = thisList.GetType();
                         }
@@ -671,7 +680,7 @@ namespace ArchipelagoMod
                         }
                         if (subNode.Name != "type")
                         {
-                            LobotomyBaseMod.ModDebug.Log(subNode.Name + objType.GetGenericArguments()[0].ToString());
+                            //LobotomyBaseMod.ModDebug.Log(subNode.Name + objType.GetGenericArguments()[0].ToString());
                             string subNodeName;
                             if (subNode.Name.StartsWith("num"))
                             {
@@ -684,7 +693,7 @@ namespace ArchipelagoMod
                             if (thisDictionary.GetType().GetGenericArguments()[0].IsEnum)
                             {
                                 paramValue = Enum.Parse(thisDictionary.GetType().GetGenericArguments()[0], subNodeName);
-                                LobotomyBaseMod.ModDebug.Log("enum" + paramValue.ToString());
+                                //LobotomyBaseMod.ModDebug.Log("enum" + paramValue.ToString());
                             }
                             else
                             {
@@ -710,11 +719,11 @@ namespace ArchipelagoMod
                             MethodInfo generic = method.MakeGenericMethod(objType.GetGenericArguments());
                             if (objType.GetGenericArguments() is null)
                             {
-                                LobotomyBaseMod.ModDebug.Log("Error!");
+                                //LobotomyBaseMod.ModDebug.Log("Error!");
                             }
                             Type subNodeType = objType.GetGenericArguments()[0];
-                            LobotomyBaseMod.ModDebug.Log(objType.ToString());
-                            LobotomyBaseMod.ModDebug.Log(subNodeType.ToString());
+                            //LobotomyBaseMod.ModDebug.Log(objType.ToString());
+                            //LobotomyBaseMod.ModDebug.Log(subNodeType.ToString());
                             object listval = __DeserializeXml(subNode, subNodeType);
                             object[] parameters = {
                                 thisList,
@@ -735,7 +744,7 @@ namespace ArchipelagoMod
                 else if (node.Name.Equals("SaveVer"))
                 {
                     return "ver1";
-                }    
+                }
                 else if (!objType.IsPrimitive && !objType.Equals(typeof(string)))
                 {
                     MethodInfo method = typeof(Harmony_Patch).GetMethod("MakeObject");
@@ -743,23 +752,12 @@ namespace ArchipelagoMod
                     serializedThing = generic.Invoke(null, null);
                     if (node.LastChild.Name.Equals("value"))
                     {
-                        // todo: objects really shouldn't be serialized 2 different ways
                         node = node.LastChild;
                     }
                     foreach (FieldInfo field in objType.GetFields())
                     {
                         foreach (XmlNode subNode in node.ChildNodes)
                         {
-                            //XmlNode actualSubNode;
-                            //if (subNode.LastChild.Name.Equals("value"))
-                            //{
-                            //    // todo: objects really shouldn't be serialized 2 different ways
-                            //    actualSubNode = subNode.LastChild;
-                            //}
-                            //else
-                            //{
-                            //    actualSubNode = subNode;
-                            //}
                             string subNodeName;
                             if (subNode.Name.StartsWith("num"))
                             {
@@ -768,9 +766,7 @@ namespace ArchipelagoMod
                             else { subNodeName = subNode.Name; }
                             if (subNodeName == field.Name)
                             {
-                                LobotomyBaseMod.ModDebug.Log("right here");
                                 field.SetValue(serializedThing, __DeserializeXml(subNode));
-                                LobotomyBaseMod.ModDebug.Log("not right here");
                             }
                         }
                     }
@@ -786,20 +782,15 @@ namespace ArchipelagoMod
                 }
                 else
                 {
-                    //MethodInfo method = typeof(Harmony_Patch).GetMethod("MakePrimitive");
-                    //MethodInfo generic = method.MakeGenericMethod(new Type[] { objType });
-                    //serializedThing = generic.Invoke(null, new object[] { node.LastChild.InnerText });
                     if (Convert.ChangeType(node.LastChild.InnerText, objType) is null)
                         throw new Exception();
                     return Convert.ChangeType(node.LastChild.InnerText, objType);
                 }
-
-                return null;
             }
             // I hope I make this less horrible later
             Type[] MakeDict(XmlNode node)
             {
-                LobotomyBaseMod.ModDebug.Log(node.Name);
+                //LobotomyBaseMod.ModDebug.Log(node.Name);
                 Type[] dictTypes = { null, null, null, null };
                 string[] typeStrings = new string[6];
                 string text = node.FirstChild.InnerText;
@@ -825,51 +816,67 @@ namespace ArchipelagoMod
                 }
                 if (dictTypes[0] is null)
                 {
-                    foreach (Type bufferType in typeBuffer)
-                    {
-                        if (!(bufferType is null) && typeStrings[0].Equals(bufferType.ToString()))
-                        {
-                            dictTypes[0] = bufferType;
-                        }
-                    }
+                    typeBuffer.TryGetValue(typeStrings[0], out dictTypes[0]);
                 }
                 if (dictTypes[0] is null)
                 {
-                    foreach (Assembly a in AppDomain.CurrentDomain.GetAssemblies())
+                    foreach (Type t in gameAssembly.GetTypes())
                     {
-                        foreach (Type t in a.GetTypes())
+                        if (typeStrings[0].Equals(t.ToString()))
                         {
-                            if (typeStrings[0].Equals(t.ToString()))
+                            // store it in the buffer for optimization purposes
+                            typeBuffer[t.ToString()] = t;
+                            dictTypes[0] = t;
+                            //LobotomyBaseMod.ModDebug.Log(t.ToString());
+                        }
+                    }
+
+                    if (dictTypes[0] is null)
+                    {
+                        foreach (Assembly a in AppDomain.CurrentDomain.GetAssemblies())
+                        {
+                            foreach (Type t in a.GetTypes())
                             {
-                                // store it in the buffer for optimization purposes
-                                typeBuffer.Add(t);
-                                dictTypes[0] = t;
-                                LobotomyBaseMod.ModDebug.Log(t.ToString());
+                                if (typeStrings[0].Equals(t.ToString()))
+                                {
+                                    // store it in the buffer for optimization purposes
+                                    typeBuffer[t.ToString()] = t;
+                                    dictTypes[0] = t;
+                                    //LobotomyBaseMod.ModDebug.Log(t.ToString());
+                                }
                             }
                         }
                     }
                 }
                 if (dictTypes[1] is null)
                 {
-                    foreach (Type bufferType in typeBuffer)
-                    {
-                        if (!(bufferType is null) && typeStrings[1].Equals(bufferType.ToString()))
-                        {
-                            dictTypes[1] = bufferType;
-                        }
-                    }
+                    typeBuffer.TryGetValue(typeStrings[1], out dictTypes[1]);
                 }
                 if (dictTypes[1] is null)
                 {
-                    foreach (Assembly a in AppDomain.CurrentDomain.GetAssemblies())
+                    foreach (Type t in gameAssembly.GetTypes())
                     {
-                        foreach (Type t in a.GetTypes())
+                        if (typeStrings[0].Equals(t.ToString()))
                         {
-                            if (typeStrings[1].Equals(t.ToString()))
+                            // store it in the buffer for optimization purposes
+                            typeBuffer[t.ToString()] = t;
+                            dictTypes[1] = t;
+                            //LobotomyBaseMod.ModDebug.Log(t.ToString());
+                        }
+                    }
+
+                    if (dictTypes[1] is null)
+                    {
+                        foreach (Assembly a in AppDomain.CurrentDomain.GetAssemblies())
+                        {
+                            foreach (Type t in a.GetTypes())
                             {
-                                // store it in the buffer for optimization purposes
-                                typeBuffer.Add(t);
-                                dictTypes[1] = t;
+                                if (typeStrings[1].Equals(t.ToString()))
+                                {
+                                    // store it in the buffer for optimization purposes
+                                    typeBuffer[t.ToString()] = t;
+                                    dictTypes[1] = t;
+                                }
                             }
                         }
                     }
@@ -913,19 +920,13 @@ namespace ArchipelagoMod
             string text = node.FirstChild.InnerText;
             text = text.Remove(0, 34);
             text = text.Remove(text.Length - 1, 1);
-            foreach (Type bufferType in typeBuffer)
-            {
-                if (text == bufferType.ToString())
-                {
-                    listType = bufferType;
-                }
-            }
+            typeBuffer.TryGetValue(text, out listType);
             if (listType is null)
             {
                 if (text.Contains("Dictionary"))
                 {
-                    LobotomyBaseMod.ModDebug.Log("text=" + text);
-                    Type[] dictTypes = {null, null};
+                    //LobotomyBaseMod.ModDebug.Log("text=" + text);
+                    Type[] dictTypes = { null, null };
                     string[] typeStrings;
                     text = text.Remove(0, 40);
                     text = text.Replace("]", "");
@@ -943,7 +944,7 @@ namespace ArchipelagoMod
                         if (text == t.ToString())
                         {
                             // store it in the buffer for optimization purposes
-                            typeBuffer.Add(t);
+                            typeBuffer[t.ToString()] = t;
                             listType = t;
                         }
                     }
@@ -956,6 +957,7 @@ namespace ArchipelagoMod
             return new List<T>();
         }
     } // end class
+    // unused
     [XmlRoot("dictionary")]
 
     public class SerializableDictionary<TKey, TValue>
