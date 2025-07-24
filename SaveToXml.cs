@@ -527,6 +527,7 @@ namespace XmlSaveMod
                 object serializedThing = null;
                 object thisDictionary = null;
                 object thisList = null;
+                // todo: make it handle this without a special case
                 if (node.Name.Equals("workCubeCounts"))
                 {
                     thisDictionary = null;
@@ -555,6 +556,7 @@ namespace XmlSaveMod
                     // some types aren't so easy to find...
                     if (objType is null)
                     {
+                        // why does this only handle the first 2 types...?
                         if (node.FirstChild.InnerText.StartsWith("System.Collections.Generic.Dictionary`2"))
                         {
                             dictTypes = MakeDict(node);
@@ -737,6 +739,7 @@ namespace XmlSaveMod
                     }
                     return thisList;
                 }
+                // todo: do I need these?
                 else if (node.Name.Equals("ver"))
                 {
                     return "boss1";
@@ -787,7 +790,7 @@ namespace XmlSaveMod
                     return Convert.ChangeType(node.LastChild.InnerText, objType);
                 }
             }
-            // I hope I make this less horrible later
+            // Is this worth redoing recursively? might be better for compatibility
             Type[] MakeDict(XmlNode node)
             {
                 //LobotomyBaseMod.ModDebug.Log(node.Name);
@@ -885,6 +888,7 @@ namespace XmlSaveMod
 
             }
         }
+        // todo: Surely there's a better way to do this?
         public static Dictionary<T, K> ActuallyMakeDict<T, K>()
         {
             return new Dictionary<T, K>();
@@ -914,6 +918,7 @@ namespace XmlSaveMod
 
             return (T)value;
         }
+        // Returns the type of the list parsed from the provided XmlNode's data.
         public static Type MakeList(XmlNode node)
         {
             Type listType = null;
@@ -923,6 +928,8 @@ namespace XmlSaveMod
             typeBuffer.TryGetValue(text, out listType);
             if (listType is null)
             {
+                // todo: make this check early in the string so it doesn't do the wrong thing if there's an (x) of Dictionaries
+                // todo: reduce the number of Type.GetType() calls
                 if (text.Contains("Dictionary"))
                 {
                     //LobotomyBaseMod.ModDebug.Log("text=" + text);
@@ -934,6 +941,19 @@ namespace XmlSaveMod
                     dictTypes[0] = Type.GetType(typeStrings[0]);
                     dictTypes[1] = Type.GetType(typeStrings[1]);
                     MethodInfo method = typeof(Harmony_Patch).GetMethod("ActuallyMakeDict");
+                    MethodInfo generic = method.MakeGenericMethod(dictTypes);
+                    return generic.Invoke(null, null).GetType();
+                }
+                else if (text.Contains("KeyValuePair"))
+                {
+                    Type[] dictTypes = { null, null };
+                    string[] typeStrings;
+                    text = text.Remove(0, 42);
+                    text = text.Replace("]", "");
+                    typeStrings = text.Split(',');
+                    dictTypes[0] = Type.GetType(typeStrings[0]);
+                    dictTypes[1] = Type.GetType(typeStrings[1]);
+                    MethodInfo method = typeof(Harmony_Patch).GetMethod("ActuallyMakeKVP");
                     MethodInfo generic = method.MakeGenericMethod(dictTypes);
                     return generic.Invoke(null, null).GetType();
                 }
@@ -955,6 +975,10 @@ namespace XmlSaveMod
         public static List<T> ActuallyMakeList<T>()
         {
             return new List<T>();
+        }
+        public static KeyValuePair<T, K> ActuallyMakeKVP<T, K>()
+        {
+            return new KeyValuePair<T, K>();
         }
     } // end class
     // unused
