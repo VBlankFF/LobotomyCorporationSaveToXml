@@ -452,7 +452,7 @@ namespace XmlSaveMod
             testElement.AppendChild(save.CreateTextNode(y.GetType().ToString()));
             thisElement.AppendChild(testElement);
             // serialize each field of the object to elements
-            foreach (FieldInfo field in y.GetType().GetFields())
+            foreach (FieldInfo field in y.GetType().GetFields((BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance) & BindingFlags.DeclaredOnly))
             {
                 XmlElement objElement = save.CreateElement(field.Name);
                 var z = field.GetValue(y);
@@ -464,8 +464,30 @@ namespace XmlSaveMod
 
                 if (z != null)
                 {
+                    if (field.FieldType.IsGenericType && Equals(field.FieldType.GetGenericTypeDefinition(), typeof(Dictionary<,>)))
+                    {
+                        XmlElement subElement = save.CreateElement(field.Name);
+                        MethodInfo method = typeof(Harmony_Patch).GetMethod(nameof(Harmony_Patch.RecursiveXml));
+                        MethodInfo generic = method.MakeGenericMethod(z.GetType().GetGenericArguments());
+                        object[] param = {
+                        z,
+                        testElement
+                        };
+                        generic.Invoke(null, param);
+                    }
+                    else if (field.FieldType.IsGenericType && Equals(field.FieldType.GetGenericTypeDefinition(), typeof(List<>)))
+                    {
+                        XmlElement subElement = save.CreateElement(field.Name);
+                        MethodInfo method = typeof(Harmony_Patch).GetMethod(nameof(Harmony_Patch.RecursiveListXml));
+                        MethodInfo generic = method.MakeGenericMethod(z.GetType().GetGenericArguments());
+                        object[] param = {
+                        z,
+                        testElement
+                        };
+                        objElement.AppendChild((XmlElement)generic.Invoke(null, param));
+                    }
                     // if it's another object, recurse!
-                    if (!field.FieldType.IsPrimitive && !field.FieldType.Equals(typeof(string)))
+                    else if (!field.FieldType.IsPrimitive && !field.FieldType.Equals(typeof(string)))
                     {
                         XmlElement subElement = save.CreateElement(field.Name);
                         MethodInfo method = typeof(Harmony_Patch).GetMethod(nameof(Harmony_Patch.RecursiveObjectSerializer));
