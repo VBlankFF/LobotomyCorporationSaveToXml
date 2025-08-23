@@ -7,6 +7,7 @@ using System.IO;
 using System.Xml;
 using System.Xml.Serialization;
 using UnityEngine.Rendering;
+using LobotomyBaseMod;
 
 namespace XmlSaveMod
 {
@@ -527,10 +528,6 @@ namespace XmlSaveMod
                 object serializedThing = null;
                 object thisDictionary = null;
                 object thisList = null;
-                if (node.Name.Equals("workCubeCounts"))
-                {
-                    thisDictionary = null;
-                }
                 Type[] dictTypes = null;
 
                 if (node.Name.StartsWith("num"))
@@ -596,26 +593,9 @@ namespace XmlSaveMod
                                     //LobotomyBaseMod.ModDebug.Log(t.ToString());
                                 }
                             }
-
                             if (objType is null)
                             {
-                                foreach (Assembly a in AppDomain.CurrentDomain.GetAssemblies())
-                                {
-                                    foreach (Type t in a.GetTypes())
-                                    {
-                                        if (typestring == t.ToString())
-                                        {
-                                            // store it in the buffer for optimization purposes
-                                            typeBuffer[t.ToString()] = t;
-                                            objType = t;
-                                            break;
-                                        }
-                                    }
-                                    if (!(objType is null))
-                                    {
-                                        break;
-                                    }
-                                }
+                                objType = GetTypeFromString(typestring);
                             }
                         }
                     }
@@ -737,14 +717,6 @@ namespace XmlSaveMod
                     }
                     return thisList;
                 }
-                else if (node.Name.Equals("ver"))
-                {
-                    return "boss1";
-                }
-                else if (node.Name.Equals("SaveVer"))
-                {
-                    return "ver1";
-                }
                 else if (!objType.IsPrimitive && !objType.Equals(typeof(string)))
                 {
                     MethodInfo method = typeof(Harmony_Patch).GetMethod("MakeObject");
@@ -833,19 +805,7 @@ namespace XmlSaveMod
 
                     if (dictTypes[0] is null)
                     {
-                        foreach (Assembly a in AppDomain.CurrentDomain.GetAssemblies())
-                        {
-                            foreach (Type t in a.GetTypes())
-                            {
-                                if (typeStrings[0].Equals(t.ToString()))
-                                {
-                                    // store it in the buffer for optimization purposes
-                                    typeBuffer[t.ToString()] = t;
-                                    dictTypes[0] = t;
-                                    //LobotomyBaseMod.ModDebug.Log(t.ToString());
-                                }
-                            }
-                        }
+                        dictTypes[0] = GetTypeFromString(typeStrings[0]);
                     }
                 }
                 if (dictTypes[1] is null)
@@ -867,18 +827,7 @@ namespace XmlSaveMod
 
                     if (dictTypes[1] is null)
                     {
-                        foreach (Assembly a in AppDomain.CurrentDomain.GetAssemblies())
-                        {
-                            foreach (Type t in a.GetTypes())
-                            {
-                                if (typeStrings[1].Equals(t.ToString()))
-                                {
-                                    // store it in the buffer for optimization purposes
-                                    typeBuffer[t.ToString()] = t;
-                                    dictTypes[1] = t;
-                                }
-                            }
-                        }
+                        dictTypes[1] = GetTypeFromString(typeStrings[1]);
                     }
                 }
                 return dictTypes;
@@ -937,24 +886,40 @@ namespace XmlSaveMod
                     MethodInfo generic = method.MakeGenericMethod(dictTypes);
                     return generic.Invoke(null, null).GetType();
                 }
-                foreach (Assembly a in AppDomain.CurrentDomain.GetAssemblies())
-                {
-                    foreach (Type t in a.GetTypes())
-                    {
-                        if (text == t.ToString())
-                        {
-                            // store it in the buffer for optimization purposes
-                            typeBuffer[t.ToString()] = t;
-                            listType = t;
-                        }
-                    }
-                }
+                listType = GetTypeFromString(text);
             }
             return listType;
         }
         public static List<T> ActuallyMakeList<T>()
         {
             return new List<T>();
+        }
+        public static Type GetTypeFromString(string typeString)
+        {
+            foreach (Assembly a in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                Type[] typeList;
+                try
+                {
+                    typeList = a.GetTypes();
+                }
+                catch (ReflectionTypeLoadException e)
+                {
+                    ModDebug.Log("SaveAsXml: Type(s) from assembly " + a.FullName + " failed to load! Skipping it and continuing");
+                    continue;
+                }
+                foreach (Type t in typeList)
+                {
+                    if (typeString == t.ToString())
+                    {
+                        // store it in the buffer for optimization purposes
+                        typeBuffer[t.ToString()] = t;
+                        return t;
+                    }
+                }
+            }
+            ModDebug.Log("SaveAsXml: Couldn't find type " + typeString);
+            return null;
         }
     } // end class
     // unused
