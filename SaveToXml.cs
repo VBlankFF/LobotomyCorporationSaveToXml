@@ -552,6 +552,7 @@ namespace XmlSaveMod
                     // some types aren't so easy to find...
                     if (objType is null)
                     {
+                        // why does this only handle the first 2 types...?
                         if (node.FirstChild.InnerText.StartsWith("System.Collections.Generic.Dictionary`2"))
                         {
                             dictTypes = MakeDict(node);
@@ -759,7 +760,7 @@ namespace XmlSaveMod
                     return Convert.ChangeType(node.LastChild.InnerText, objType);
                 }
             }
-            // I hope I make this less horrible later
+            // Is this worth redoing recursively? might be better for compatibility
             Type[] MakeDict(XmlNode node)
             {
                 //LobotomyBaseMod.ModDebug.Log(node.Name);
@@ -834,6 +835,7 @@ namespace XmlSaveMod
 
             }
         }
+        // todo: Surely there's a better way to do this?
         public static Dictionary<T, K> ActuallyMakeDict<T, K>()
         {
             return new Dictionary<T, K>();
@@ -863,6 +865,7 @@ namespace XmlSaveMod
 
             return (T)value;
         }
+        // Returns the type of the list parsed from the provided XmlNode's data.
         public static Type MakeList(XmlNode node)
         {
             Type listType = null;
@@ -872,6 +875,8 @@ namespace XmlSaveMod
             typeBuffer.TryGetValue(text, out listType);
             if (listType is null)
             {
+                // todo: make this check early in the string so it doesn't do the wrong thing if there's an (x) of Dictionaries
+                // todo: reduce the number of Type.GetType() calls
                 if (text.Contains("Dictionary"))
                 {
                     //LobotomyBaseMod.ModDebug.Log("text=" + text);
@@ -920,6 +925,10 @@ namespace XmlSaveMod
             }
             ModDebug.Log("SaveAsXml: Couldn't find type " + typeString);
             return null;
+        }
+        public static KeyValuePair<T, K> ActuallyMakeKVP<T, K>()
+        {
+            return new KeyValuePair<T, K>();
         }
     } // end class
     // unused
