@@ -452,6 +452,27 @@ namespace XmlSaveMod
             testElement = save.CreateElement("type");
             testElement.AppendChild(save.CreateTextNode(y.GetType().ToString()));
             thisElement.AppendChild(testElement);
+            
+            if (y.GetType().IsGenericType && y.GetType().GetGenericTypeDefinition().Equals(typeof(KeyValuePair<,>)))
+            {
+                //MethodInfo decon = y.GetType().GetMethod("Deconstruct").MakeGenericMethod(y.GetType().GetGenericArguments());
+                object key = null;
+                object value = null;
+                string[] output = y.ToString().Replace("[", "").Replace("]", "").Split(',');
+                //decon.Invoke(y, output);
+                //KeyValuePair<object,object> x = (KeyValuePair<object, object>)y;
+                testElement = save.CreateElement("Key");
+                //PropertyInfo key = typeof(KeyValuePair<,>).GetProperty("Key");
+                //MethodInfo getValueGeneric = typeof(PropertyInfo).GetMethod("GetValue", BindingFlags.Public | BindingFlags.Instance, null, new Type[] { typeof(object), typeof(object[]) }, null)
+                    //.MakeGenericMethod();
+                testElement.AppendChild(save.CreateTextNode(output[0].Trim()));
+                thisElement.AppendChild(testElement);
+                testElement = save.CreateElement("Value");
+                //PropertyInfo value = typeof(KeyValuePair<,>).GetProperty("Value");
+                testElement.AppendChild(save.CreateTextNode(output[1].Trim()));
+                thisElement.AppendChild(testElement);
+                return thisElement;
+            }
             // serialize each field of the object to elements
             foreach (FieldInfo field in y.GetType().GetFields())
             {
@@ -529,7 +550,6 @@ namespace XmlSaveMod
                 object thisDictionary = null;
                 object thisList = null;
                 Type[] dictTypes = null;
-
                 if (node.Name.StartsWith("num"))
                 {
                     nodeName = node.Name.Remove(0, 3);
@@ -718,6 +738,21 @@ namespace XmlSaveMod
                     }
                     return thisList;
                 }
+                if (objType.IsGenericType && objType.GetGenericTypeDefinition().Equals(typeof(KeyValuePair<,>)))
+                {
+                    XmlNode keyNode = node.SelectSingleNode("Key");
+                    XmlNode valueNode = node.SelectSingleNode("Value");
+                    object key = null, value = null;
+                    if (!(keyNode is null))
+                    {
+                        key = __DeserializeXml(keyNode, objType.GetGenericArguments()[0]);
+                    }
+                    if (!(valueNode is null))
+                    {
+                        value = __DeserializeXml(valueNode, objType.GetGenericArguments()[1]);
+                    }
+                    return objType.GetConstructors()[0].Invoke(new object[] { key, value });
+                }
                 else if (!objType.IsPrimitive && !objType.Equals(typeof(string)))
                 {
                     MethodInfo method = typeof(Harmony_Patch).GetMethod("MakeObject");
@@ -888,6 +923,19 @@ namespace XmlSaveMod
                     dictTypes[0] = Type.GetType(typeStrings[0]);
                     dictTypes[1] = Type.GetType(typeStrings[1]);
                     MethodInfo method = typeof(Harmony_Patch).GetMethod("ActuallyMakeDict");
+                    MethodInfo generic = method.MakeGenericMethod(dictTypes);
+                    return generic.Invoke(null, null).GetType();
+                }
+                else if (text.Contains("KeyValuePair"))
+                {
+                    Type[] dictTypes = { null, null };
+                    string[] typeStrings;
+                    text = text.Remove(0, 42);
+                    text = text.Replace("]", "");
+                    typeStrings = text.Split(',');
+                    dictTypes[0] = Type.GetType(typeStrings[0]);
+                    dictTypes[1] = Type.GetType(typeStrings[1]);
+                    MethodInfo method = typeof(Harmony_Patch).GetMethod("ActuallyMakeKVP");
                     MethodInfo generic = method.MakeGenericMethod(dictTypes);
                     return generic.Invoke(null, null).GetType();
                 }
