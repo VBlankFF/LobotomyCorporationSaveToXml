@@ -291,7 +291,14 @@ namespace XmlSaveMod
                     catch (Exception ex)
                     {
                         // this is horrible practice
-                        thisElement = save.CreateElement("num" + y.Key.ToString());
+                        if (char.IsDigit(y.Key.ToString()[0]))
+                        {
+                            thisElement = save.CreateElement("num" + y.Key.ToString());
+                        }
+                        else
+                        {
+                            thisElement = save.CreateElement("num" + XmlConvert.EncodeName(y.Key.ToString()));
+                        }
                     }
                     // store its type
                     testElement = save.CreateElement("type");
@@ -552,9 +559,9 @@ namespace XmlSaveMod
                 Type[] dictTypes = null;
                 if (node.Name.StartsWith("num"))
                 {
-                    nodeName = node.Name.Remove(0, 3);
+                    nodeName = XmlConvert.DecodeName(node.Name).Remove(0, 3);
                 }
-                else { nodeName = node.Name; }
+                else { nodeName = XmlConvert.DecodeName(node.Name); }
                 if (node.HasChildNodes && node.FirstChild.Name == "type")
                 {
                     if (objType is null)
@@ -685,9 +692,9 @@ namespace XmlSaveMod
                             string subNodeName;
                             if (subNode.Name.StartsWith("num"))
                             {
-                                subNodeName = subNode.Name.Remove(0, 3);
+                                subNodeName = XmlConvert.DecodeName(subNode.Name).Remove(0, 3);
                             }
-                            else { subNodeName = subNode.Name; }
+                            else { subNodeName = XmlConvert.DecodeName(subNode.Name); }
                             MethodInfo method = typeof(Harmony_Patch).GetMethod("AddToDict");
                             MethodInfo generic = method.MakeGenericMethod(thisDictionary.GetType().GetGenericArguments());
                             object paramValue;
@@ -769,9 +776,9 @@ namespace XmlSaveMod
                             string subNodeName;
                             if (subNode.Name.StartsWith("num"))
                             {
-                                subNodeName = subNode.Name.Remove(0, 3);
+                                subNodeName = XmlConvert.DecodeName(subNode.Name).Remove(0, 3);
                             }
-                            else { subNodeName = subNode.Name; }
+                            else { subNodeName = XmlConvert.DecodeName(subNode.Name); }
                             if (subNodeName == field.Name)
                             {
                                 field.SetValue(serializedThing, __DeserializeXml(subNode));
