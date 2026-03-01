@@ -965,7 +965,7 @@ namespace XmlSaveMod
                 }
                 catch (ReflectionTypeLoadException e)
                 {
-                    ModDebug.Log("SaveAsXml: Type(s) from assembly " + a.FullName + " failed to load! Skipping it and continuing");
+                    UnityEngine.Debug.Log("SaveAsXml: Type(s) from assembly " + a.FullName + " failed to load! Skipping it and continuing");
                     continue;
                 }
                 foreach (Type t in typeList)
@@ -978,7 +978,7 @@ namespace XmlSaveMod
                     }
                 }
             }
-            ModDebug.Log("SaveAsXml: Couldn't find type " + typeString);
+            UnityEngine.Debug.Log("SaveAsXml: Couldn't find type " + typeString);
             return null;
         }
         public static KeyValuePair<T, K> ActuallyMakeKVP<T, K>()

@@ -11,6 +11,7 @@
     <FileAlignment>512</FileAlignment>
     <RootNamespace>savething</RootNamespace>
     <TargetFrameworkProfile />
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
